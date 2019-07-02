@@ -1,15 +1,14 @@
 % - Asynchronous plane wave transmit acquisition into multiple
 % RcvBuffer frames with reconstruction and image processing.
 clear all
-V64 = 0; % set to 1 for Vantage 64 system.
 startDepth = 5;
 endDepth = 200;
 % Specify system parameters
 Resource.Parameters.numTransmit = 128; % no. of transmit channels.
-Resource.Parameters.numRcvChannels = 128-(64*V64); % no. of receive channels.
+Resource.Parameters.numRcvChannels = 128; % no. of receive channels.
 Resource.Parameters.speedOfSound = 1540; % speed of sound in m/sec
 Resource.Parameters.fakeScanhead = 1; % optional (if no L11-4v)
-Resource.Parameters.simulateMode = 0; % runs script with hardware
+Resource.Parameters.simulateMode = 1; % runs script with hardware
 % Specify media points
 pt1; % use predefined collection of media points
 % Specify Trans structure array.
@@ -17,6 +16,7 @@ Trans.name = 'L11-4v';
 Trans.units = 'mm';
 Trans.frequency = 6.25; % not needed if using default center frequency
 Trans = computeTrans(Trans); % L7-4 transducer is 'known' transducer.
+
 % Specify PData structure array.
 PData.PDelta = [Trans.spacing,0,0.5]; % x, y and z pixel deltas
 PData.Size(1) = ceil((endDepth-startDepth)/PData.PDelta(3));
@@ -33,7 +33,7 @@ Resource.RcvBuffer(1).colsPerFrame = 128;
 Resource.RcvBuffer(1).numFrames = 10; % minimum size is 1 frame.
 Resource.InterBuffer(1).numFrames = 1; % InterBuffer needed for V64=1
 Resource.ImageBuffer(1).numFrames = 10;
-Resource.DisplayWindow(1).Title = 'L11-4v Plane Wave Transmit';
+Resource.DisplayWindow(1).Title = 'Plane Wave Transmit';
 Resource.DisplayWindow(1).pdelta = 0.3;
 Resource.DisplayWindow(1).Position = [250,150, ... % lower lft corner pos.
 ceil(PData.Size(2)*PData.PDelta(1)/Resource.DisplayWindow(1).pdelta), ...
@@ -42,6 +42,7 @@ Resource.DisplayWindow(1).ReferencePt = [PData.Origin(1),0,PData.Origin(3)];
 Resource.DisplayWindow(1).AxesUnits = 'mm';
 Resource.DisplayWindow(1).Colormap = gray(256);
 Resource.DisplayWindow(1).numFrames = 20;
+
 % Specify Transmit waveform structure.
 TW(1).type = 'parametric';
 TW(1).Parameters = [6.25,0.67,2,1]; % A, B, C, D
@@ -67,25 +68,14 @@ Receive = repmat(struct(...
 'sampleMode', 'NS200BW', ...
 'LowPassCoef',[],...
 'InputFilter',[]),...
-1,Resource.RcvBuffer(1).numFrames*(V64+1));
+1,Resource.RcvBuffer(1).numFrames);
 % - Set event specific Receive attributes.
-if (V64==0)
-    for i = 1:Resource.RcvBuffer(1).numFrames
-        Receive(i).Apod = ones(1,128);
-        Receive(i).framenum = i;
-    end
-else
-    for i = 1:Resource.RcvBuffer(1).numFrames
-        % -- 1st synthetic aperture acquisition for full frame.
-        Receive(2*i-1).Apod(1:64) = 1.0;
-        Receive(2*i-1).framenum = i;
-        Receive(2*i-1).acqNum = 1;
-        % -- 2nd synthetic aperture acquisition for full frame.
-        Receive(2*i).Apod(65:128) = 1.0;
-        Receive(2*i).framenum = i;
-        Receive(2*i).acqNum = 2; % two acquisitions per frame
-    end
+
+for i = 1:Resource.RcvBuffer(1).numFrames
+    Receive(i).Apod = ones(1,128);
+    Receive(i).framenum = i;
 end
+
 % Specify Recon structure array for 2 board system.
 Recon = struct('senscutoff', 0.6, ...
 'pdatanum', 1, ...
@@ -93,24 +83,12 @@ Recon = struct('senscutoff', 0.6, ...
 'IntBufDest', [1,1], ... % needed if V64 = 1
 'ImgBufDest', [1,-1], ... % auto-increment ImageBuffer each recon
 'RINums', 1);
-if V64==0
-    % Define ReconInfo structure for a 128 channel system.
-    ReconInfo(1) = struct('mode','replaceIntensity', ...
-    'txnum', 1, ...
-    'rcvnum', 1, ...
-    'regionnum',1);
-else
-    % Define ReconInfo structure for a 64 channel system.
-    Recon(1).RINums = [1;2];
-    ReconInfo(1) = struct('mode', 'accumIQ', ...
-    'txnum', 1, ...
-    'rcvnum', 1, ...
-    'regionnum', 1);
-    ReconInfo(2) = struct('mode','accumIQ_replaceIntensity', ...
-    'txnum', 1, ...
-    'rcvnum', 2, ...
-    'regionnum',1);
-end
+% Define ReconInfo structure for a 128 channel system.
+ReconInfo(1) = struct('mode','replaceIntensity', ...
+'txnum', 1, ...
+'rcvnum', 1, ...
+'regionnum',1);
+
 % Specify processing events.
 pers = 30;
 Process(1).classname = 'Image';
@@ -130,6 +108,7 @@ Process(1).Parameters = {'imgbufnum',1,... % number of buffer to process.
                         'mappingMethod', 'full',... % see text
                         'display',1,... % display image after processing
                         'displayWindow',1}; % number of displayWindow to use
+
 Process(2).classname = 'External';
 Process(2).method = 'myProcFunction';
 Process(2).Parameters = {'srcbuffer','receive',... % name of buffer to process.
@@ -148,18 +127,9 @@ n = 1; % start index for Events
 for i = 1:Resource.RcvBuffer(1).numFrames
     Event(n).info = 'Acquire RF Data.';
     Event(n).tx = 1; % use 1st TX structure.
-    Event(n).rcv = (V64+1)*i-V64; % use 1st Rcv structure for frame.
+    Event(n).rcv = i; % use 1st Rcv structure for frame.
     Event(n).recon = 0; % no reconstruction.
     Event(n).process = 0; % no processing
-    if V64==1
-        Event(n).seqControl = 3;
-        n = n+1;
-        Event(n).info = 'Acquire RF Data for 2nd half of aperture.';
-        Event(n).tx = 1; % use 1st TX structure.
-        Event(n).rcv = 2*i; % use Rcv structure for frame.
-        Event(n).recon = 0; % no reconstruction.
-        Event(n).process = 0; % no processing
-    end
     Event(n).seqControl = [1,nsc]; % time between frames and transfer
     SeqControl(nsc).command = 'transferToHost';
     nsc = nsc + 1;
@@ -174,7 +144,6 @@ for i = 1:Resource.RcvBuffer(1).numFrames
     Event(n).info = 'Perform reconstruction and image display processing.';
     Event(n).tx = 0; % no TX structure.
     Event(n).rcv = 0; % no Rcv structure.
-
     Event(n).recon = 1; % reconstruction.
     Event(n).process = 1; % call image processing function
     Event(n).seqControl = 0;
@@ -186,17 +155,26 @@ Event(n).rcv = 0; % no Rcv structure.
 Event(n).recon = 0; % no reconstruction.
 Event(n).process = 0; % no processing
 Event(n).seqControl = 2; % jump back to Event 1.
+
 % - Create UI controls for channel selection
 nr = Resource.Parameters.numRcvChannels;
 UI(1).Control = {'UserB1','Style','VsSlider',...
 'Label','Plot Channel',...
-'SliderMinMaxVal',[1,128-64*V64,64-32*V64],...
+'SliderMinMaxVal',[1,128,64],...
 'SliderStep', [1/nr,8/nr],...
 'ValueFormat', '%3.0f'};
 UI(1).Callback = {'assignin(''base'',''myPlotChnl'',round(UIValue))'};
+
+UI(2).Control = {'UserB2','Style','VsSlider',...
+'Label','New Channel',...
+'SliderMinMaxVal',[1,128,64],...
+'SliderStep', [1/nr,8/nr],...
+'ValueFormat', '%3.0f'};
+
 EF(1).Function = text2cell('%EF#1');
 % Save all the structures to a .mat file.
-save('L11-4vAcquireRF');
+filename = 'C:\Users\Verasonics\Documents\MATLAB\Image-Guided-Stim\MatFiles\myL11-4vAcquireRF';
+save(filename);
 return
 
 %EF#1
@@ -210,11 +188,17 @@ channel = 32; % Channel no. to plot
 end
 % Create the figure if it doesn’t exist.
 if isempty(myHandle)||~ishandle(myHandle)
-figure;
-myHandle = axes('XLim',[0,1500],'YLim',[-4096 4096], ...
-'NextPlot','replacechildren');
+%figure;
+try
+figHandles = findobj('Type', 'figure');
+ax = imgca(figHandles(1));
+myHandle = impoint(ax); %axes('XLim',[0,1500],'YLim',[-4096 4096], ...
+%'NextPlot','replacechildren');
+catch e
+    disp(e.message)
+end
 end
 % Plot the RF data.
-plot(myHandle,RData(:,channel));
+%plot(myHandle,RData(:,channel));
 drawnow
 %EF#1
