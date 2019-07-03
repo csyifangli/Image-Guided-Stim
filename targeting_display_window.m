@@ -25,8 +25,10 @@ function targeting_display_window(hobject, eventdata)
     %set(Resource.DisplayWindow(1).figureHandle,'Visible','off');
     [x,y,I] = getimage(Resource.DisplayWindow.figureHandle);
     imagesc(targeting_window, x,y,I); hold on;
-    point=impoint(targeting_window, 0, 30); hold on;
-    bringToFront(point)
+    target_pos = Resource.parameters.target_position;
+    Resource.parameters.target_point=impoint(targeting_window, target_pos(1), target_pos(2)); hold on;
+%     bringToFront(point)
+    assignin('base','Resource',Resource);
     drawnow
     catch e
         disp(e.message);

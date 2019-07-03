@@ -1,26 +1,41 @@
 % - Asynchronous plane wave transmit acquisition into multiple
 % RcvBuffer frames with reconstruction and image processing.
-clear all
+function ImageAcquisition(varargin)
+evalin('base','clear');
+p = inputParser;
+addOptional(p, 'target_position', [-1 -1]);
+parse(p, varargin{:})
+
+Resource.parameters.target_position = p.Results.target_position;
 startDepth = 5;
 endDepth = 200;
+
+Trans.name = 'L11-4v';%'L12-5 38mm'; % 'L12-5 50mm';
+Trans.units = 'mm';
+Trans.frequency = 6.25; % not needed if using default center frequency
+Trans = computeTrans(Trans);
+% Trans.name = 'custom';
+% Trans.Connector = (1:Trans.numelements)';
+% Trans = rmfield(Trans, 'HVMux');
+transmit_channels = 128;% Trans.numelements;
+receive_channels = 128;%Trans.numelements;
+
 % Specify system parameters
-Resource.Parameters.numTransmit = 128; % no. of transmit channels.
-Resource.Parameters.numRcvChannels = 128; % no. of receive channels.
+Resource.Parameters.numTransmit = transmit_channels; % no. of transmit channels.
+Resource.Parameters.numRcvChannels = receive_channels; % no. of receive channels.
+Resource.Parameters.connector = 0;
 Resource.Parameters.speedOfSound = 1540; % speed of sound in m/sec
 Resource.Parameters.fakeScanhead = 1; % optional (if no L11-4v)
 Resource.Parameters.simulateMode = 1; % runs script with hardware
 % Specify media points
 pt1; % use predefined collection of media points
 % Specify Trans structure array.
-Trans.name = 'L12-5 38mm'; % 'L12-5 50mm';
-Trans.units = 'mm';
-Trans.frequency = 6.25; % not needed if using default center frequency
-Trans = computeTrans(Trans);
+
 
 % Specify PData structure array.
 PData.PDelta = [Trans.spacing,0,0.5]; % x, y and z pixel deltas
 PData.Size(1) = ceil((endDepth-startDepth)/PData.PDelta(3));
-PData.Size(2) = ceil(128*Trans.spacing/PData.PDelta(1));
+PData.Size(2) = ceil(receive_channels*Trans.spacing/PData.PDelta(1));
 PData.Size(3) = 1; % 2D image plane
 % PData.Origin is the location [x,y,z] of the upper lft corner of the array.
 PData.Origin = [-63.5*Trans.spacing,0,startDepth];
@@ -29,7 +44,7 @@ PData.Region = computeRegions(PData);
 % Specify Resource buffers.
 Resource.RcvBuffer(1).datatype = 'int16';
 Resource.RcvBuffer(1).rowsPerFrame = 4096; % this allows for 1/4 maximum range
-Resource.RcvBuffer(1).colsPerFrame = 128;
+Resource.RcvBuffer(1).colsPerFrame = receive_channels;
 Resource.RcvBuffer(1).numFrames = 10; % minimum size is 1 frame.
 Resource.InterBuffer(1).numFrames = 1; % InterBuffer needed for V64=1
 Resource.ImageBuffer(1).numFrames = 10;
@@ -49,15 +64,20 @@ TW(1).Parameters = [6.25,0.67,2,1]; % A, B, C, D
 % Specify TX structure array.
 TX(1).waveform = 1; % use 1st TW structure.
 TX(1).focus = 0;
-TX(1).Apod = ones(1,Trans.numelements);
+TX(1).Apod = ones(1,transmit_channels);
+%TX(1).aperture = 1;
+assignin('base','Trans',Trans);
+assignin('base','Resource',Resource);
+
 TX(1).Delay = computeTXDelays(TX(1));
+
 % Specify TGC Waveform structure.
 TGC(1).CntrlPts = [300,450,575,675,750,800,850,900];
 TGC(1).rangeMax = 200;
 TGC(1).Waveform = computeTGCWaveform(TGC);
 % Specify Receive structure array -
 Receive = repmat(struct(...
-'Apod', zeros(1,128), ...
+'Apod', zeros(1, receive_channels), ...
 'startDepth', 0, ...
 'endDepth', 200, ...
 'TGC', 1, ...
@@ -72,8 +92,9 @@ Receive = repmat(struct(...
 % - Set event specific Receive attributes.
 
 for i = 1:Resource.RcvBuffer(1).numFrames
-    Receive(i).Apod = ones(1,128);
+    Receive(i).Apod = ones(1, receive_channels);
     Receive(i).framenum = i;
+    %Receive(i).aperture = 1;
 end
 
 % Specify Recon structure array for 2 board system.
@@ -134,13 +155,13 @@ for i = 1:Resource.RcvBuffer(1).numFrames
     SeqControl(nsc).command = 'transferToHost';
     nsc = nsc + 1;
     n = n+1;
-    Event(n).info = 'Call external Processing function.';
-    Event(n).tx = 0; % no TX structure.
-    Event(n).rcv = 0; % no Rcv structure.
-    Event(n).recon = 0; % no reconstruction.
-    Event(n).process = 2; % call ext. processing function
-    Event(n).seqControl = 0;
-    n = n+1;
+%     Event(n).info = 'Call external Processing function.';
+%     Event(n).tx = 0; % no TX structure.
+%     Event(n).rcv = 0; % no Rcv structure.
+%     Event(n).recon = 0; % no reconstruction.
+%     Event(n).process = 2; % call ext. processing function
+%     Event(n).seqControl = 0;
+%     n = n+1;
     Event(n).info = 'Perform reconstruction and image display processing.';
     Event(n).tx = 0; % no TX structure.
     Event(n).rcv = 0; % no Rcv structure.
@@ -160,39 +181,48 @@ Event(n).seqControl = 2; % jump back to Event 1.
 nr = Resource.Parameters.numRcvChannels;
 UI(1).Control = {'UserB1','Style','VsSlider',...
 'Label','Plot Channel',...
-'SliderMinMaxVal',[1,128,64],...
+'SliderMinMaxVal',[1,receive_channels,64],...
 'SliderStep', [1/nr,8/nr],...
 'ValueFormat', '%3.0f'};
 UI(1).Callback = {'assignin(''base'',''myPlotChnl'',round(UIValue))'};
 
-UI(2).Control = {'UserB2','Style','VsPushButton',...
+UI(2).Control = {'UserB7','Style','VsPushButton',...
 'Label','Targeting GUI'};
 
 UI(2).Callback = {'targeting_display_window'};
 
-EF(1).Function = text2cell('%EF#1');
-% Save all the structures to a .mat file.
-filename = 'C:\Users\Verasonics\Documents\MATLAB\Image-Guided-Stim\MatFiles\myL11-4vAcquireRF';
-save(filename);
-VSX
-return
+UI(3).Control = {'UserB6','Style','VsPushButton',...
+'Label','Stimulate'};
 
-%EF#1
-myProcFunction(RData)
-persistent myHandle
-% If ‘myPlotChnl’ exists, read it for the channel to plot.
-if evalin('base','exist(''myPlotChnl'',''var'')')
-channel = evalin('base','myPlotChnl');
-else
-channel = 32; % Channel no. to plot
+UI(3).Callback = {'stimulate_callback'};
+
+
+%EF(1).Function = text2cell('%EF#1');
+% Save all the structures to a .mat file.
+
+filename = 'C:\Users\Verasonics\Documents\MATLAB\Image-Guided-Stim\MatFiles\image_guided_stim';
+ws = [filename, '.mat'];
+save(filename);
+evalin('base', 'load(''C:\Users\Verasonics\Documents\MATLAB\Image-Guided-Stim\MatFiles\image_guided_stim.mat'')');
+evalin('base','VSX');
 end
-% Create the figure if it doesn’t exist.
-if isempty(myHandle)||~ishandle(myHandle)
-figure;
-myHandle = axes('XLim',[0,1500],'YLim',[-4096 4096], ...
-'NextPlot','replacechildren');
-end
-% Plot the RF data.
-plot(myHandle,RData(:,channel));
-drawnow
-%EF#1
+
+% %EF#1
+% myProcFunction(RData)
+% persistent myHandle
+% % If ‘myPlotChnl’ exists, read it for the channel to plot.
+% if evalin('base','exist(''myPlotChnl'',''var'')')
+% channel = evalin('base','myPlotChnl');
+% else
+% channel = 32; % Channel no. to plot
+% end
+% % Create the figure if it doesn’t exist.
+% if isempty(myHandle)||~ishandle(myHandle)
+% figure;
+% myHandle = axes('XLim',[0,1500],'YLim',[-4096 4096], ...
+% 'NextPlot','replacechildren');
+% end
+% % Plot the RF data.
+% plot(myHandle,RData(:,channel));
+% drawnow
+% %EF#1
