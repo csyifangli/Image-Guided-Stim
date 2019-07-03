@@ -12,10 +12,10 @@ Resource.Parameters.simulateMode = 1; % runs script with hardware
 % Specify media points
 pt1; % use predefined collection of media points
 % Specify Trans structure array.
-Trans.name = 'L11-4v';
+Trans.name = 'L12-5 38mm'; % 'L12-5 50mm';
 Trans.units = 'mm';
 Trans.frequency = 6.25; % not needed if using default center frequency
-Trans = computeTrans(Trans); % L7-4 transducer is 'known' transducer.
+Trans = computeTrans(Trans);
 
 % Specify PData structure array.
 PData.PDelta = [Trans.spacing,0,0.5]; % x, y and z pixel deltas
