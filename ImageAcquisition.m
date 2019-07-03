@@ -165,16 +165,16 @@ UI(1).Control = {'UserB1','Style','VsSlider',...
 'ValueFormat', '%3.0f'};
 UI(1).Callback = {'assignin(''base'',''myPlotChnl'',round(UIValue))'};
 
-UI(2).Control = {'UserB2','Style','VsSlider',...
-'Label','New Channel',...
-'SliderMinMaxVal',[1,128,64],...
-'SliderStep', [1/nr,8/nr],...
-'ValueFormat', '%3.0f'};
+UI(2).Control = {'UserB2','Style','VsPushButton',...
+'Label','Targeting GUI'};
+
+UI(2).Callback = {'targeting_display_window'};
 
 EF(1).Function = text2cell('%EF#1');
 % Save all the structures to a .mat file.
 filename = 'C:\Users\Verasonics\Documents\MATLAB\Image-Guided-Stim\MatFiles\myL11-4vAcquireRF';
 save(filename);
+VSX
 return
 
 %EF#1
@@ -188,17 +188,11 @@ channel = 32; % Channel no. to plot
 end
 % Create the figure if it doesn’t exist.
 if isempty(myHandle)||~ishandle(myHandle)
-%figure;
-try
-figHandles = findobj('Type', 'figure');
-ax = imgca(figHandles(1));
-myHandle = impoint(ax); %axes('XLim',[0,1500],'YLim',[-4096 4096], ...
-%'NextPlot','replacechildren');
-catch e
-    disp(e.message)
-end
+figure;
+myHandle = axes('XLim',[0,1500],'YLim',[-4096 4096], ...
+'NextPlot','replacechildren');
 end
 % Plot the RF data.
-%plot(myHandle,RData(:,channel));
+plot(myHandle,RData(:,channel));
 drawnow
 %EF#1
