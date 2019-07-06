@@ -1,4 +1,4 @@
-function targeting_display_window(hobject, eventdata)
+function targeting_display_window()
 
     persistent targeting_window
     Resource = evalin('base','Resource');
@@ -28,9 +28,15 @@ function targeting_display_window(hobject, eventdata)
     target_pos = Resource.parameters.target_position;
     Resource.parameters.target_point=impoint(targeting_window, target_pos(1), target_pos(2)); hold on;
 %     bringToFront(point)
-    assignin('base','Resource',Resource);
+    
     drawnow
     catch e
         disp(e.message);
     end
+    try 
+        ishghandle(Resource.parameters.GUI_handle.UIFigure);
+    catch
+        Resource.parameters.GUI_handle = stimulation_waveform_GUI(Resource);
+    end
+    assignin('base','Resource',Resource);
 end

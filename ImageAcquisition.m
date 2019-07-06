@@ -3,30 +3,48 @@
 function ImageAcquisition(varargin)
 evalin('base','clear');
 p = inputParser;
-addOptional(p, 'target_position', [-1 -1]);
+addOptional(p, 'target_position', [0 5]);
+addOptional(p, 'imaging_freq', 6.25);
+addOptional(p, 'stim_freq', 5);
+addOptional(p, 'duty_cycle', 50);
+addOptional(p, 'duration', 0.1);
+addOptional(p, 'prf',1000);
+addOptional(p, 'TW', []);
+addOptional(p, 'GUI_handle',0);
+
+
 parse(p, varargin{:})
 
-Resource.parameters.target_position = p.Results.target_position;
-startDepth = 5;
-endDepth = 200;
-
-Trans.name = 'L11-4v';%'L12-5 38mm'; % 'L12-5 50mm';
-Trans.units = 'mm';
-Trans.frequency = 6.25; % not needed if using default center frequency
-Trans = computeTrans(Trans);
-% Trans.name = 'custom';
-% Trans.Connector = (1:Trans.numelements)';
-% Trans = rmfield(Trans, 'HVMux');
 transmit_channels = 128;% Trans.numelements;
 receive_channels = 128;%Trans.numelements;
 
 % Specify system parameters
+Resource.parameters.target_position = p.Results.target_position;
+Resource.parameters.imaging_freq = p.Results.imaging_freq;
+Resource.parameters.stim_freq = p.Results.stim_freq;
+Resource.parameters.duty_cycle = p.Results.duty_cycle;
+Resource.parameters.duration = p.Results.duration;
+Resource.parameters.prf = p.Results.prf;
+Resource.parameters.TW = p.Results.TW;
+Resource.parameters.GUI_handle = p.Results.GUI_handle;
 Resource.Parameters.numTransmit = transmit_channels; % no. of transmit channels.
 Resource.Parameters.numRcvChannels = receive_channels; % no. of receive channels.
 Resource.Parameters.connector = 0;
 Resource.Parameters.speedOfSound = 1540; % speed of sound in m/sec
 Resource.Parameters.fakeScanhead = 1; % optional (if no L11-4v)
 Resource.Parameters.simulateMode = 1; % runs script with hardware
+startDepth = 5;
+endDepth = 200;
+
+
+Trans.name = 'L11-4v';%'L12-5 38mm'; % 'L12-5 50mm';
+Trans.units = 'mm';
+Trans.frequency = Resource.parameters.imaging_freq; % not needed if using default center frequency
+Trans = computeTrans(Trans);
+% Trans.name = 'custom';
+% Trans.Connector = (1:Trans.numelements)';
+% Trans = rmfield(Trans, 'HVMux');
+
 % Specify media points
 pt1; % use predefined collection of media points
 % Specify Trans structure array.
@@ -58,9 +76,13 @@ Resource.DisplayWindow(1).AxesUnits = 'mm';
 Resource.DisplayWindow(1).Colormap = gray(256);
 Resource.DisplayWindow(1).numFrames = 20;
 
+
+
+
+
 % Specify Transmit waveform structure.
 TW(1).type = 'parametric';
-TW(1).Parameters = [6.25,0.67,2,1]; % A, B, C, D
+TW(1).Parameters = [Resource.parameters.imaging_freq,0.67,2,1]; % A, B, C, D
 % Specify TX structure array.
 TX(1).waveform = 1; % use 1st TW structure.
 TX(1).focus = 0;
@@ -190,11 +212,6 @@ UI(2).Control = {'UserB7','Style','VsPushButton',...
 'Label','Targeting GUI'};
 
 UI(2).Callback = {'targeting_display_window'};
-
-UI(3).Control = {'UserB6','Style','VsPushButton',...
-'Label','Stimulate'};
-
-UI(3).Callback = {'stimulate_callback'};
 
 
 %EF(1).Function = text2cell('%EF#1');
