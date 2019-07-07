@@ -29,6 +29,9 @@ function targeting_display_window()
     Resource.parameters.target_point=impoint(targeting_window, target_pos(1), target_pos(2)); hold on;
 %     bringToFront(point)
     
+    api = iptgetapi(Resource.parameters.target_point); 
+    api.addNewPositionCallback(@(pos)... 
+    title(targeting_window, ['(',mat2str(pos(1)),',',mat2str(pos(2)),')']));
     drawnow
     catch e
         disp(e.message);

@@ -6,9 +6,9 @@ p = inputParser;
 addOptional(p, 'target_position', [0 5]);
 addOptional(p, 'imaging_freq', 6.25);
 addOptional(p, 'stim_freq', 5);
-addOptional(p, 'duty_cycle', 50);
-addOptional(p, 'duration', 0.1);
-addOptional(p, 'prf',1000);
+addOptional(p, 'duty_cycle', 33);
+addOptional(p, 'duration', 0.01);
+addOptional(p, 'prf',10000);
 addOptional(p, 'TW', []);
 addOptional(p, 'GUI_handle',0);
 
@@ -17,6 +17,8 @@ parse(p, varargin{:})
 
 transmit_channels = 128;% Trans.numelements;
 receive_channels = 128;%Trans.numelements;
+imaging_prf = 10000; % 'timeToNextAcq' argument [microseconds] 
+V_amplitude = 7;
 
 % Specify system parameters
 Resource.parameters.target_position = p.Results.target_position;
@@ -41,6 +43,9 @@ Trans.name = 'L11-4v';%'L12-5 38mm'; % 'L12-5 50mm';
 Trans.units = 'mm';
 Trans.frequency = Resource.parameters.imaging_freq; % not needed if using default center frequency
 Trans = computeTrans(Trans);
+
+% Trans.ElementPos(:,1) = Trans.spacing * …
+% (-((Trans.numelements-1)/2):((Trans.numelements-1)/2));
 % Trans.name = 'custom';
 % Trans.Connector = (1:Trans.numelements)';
 % Trans = rmfield(Trans, 'HVMux');
@@ -80,7 +85,7 @@ Resource.DisplayWindow(1).numFrames = 20;
 
 
 
-% Specify Transmit waveform structure.
+% Specify Transmit waveform structure for imaging.
 TW(1).type = 'parametric';
 TW(1).Parameters = [Resource.parameters.imaging_freq,0.67,2,1]; % A, B, C, D
 % Specify TX structure array.
@@ -92,6 +97,27 @@ assignin('base','Trans',Trans);
 assignin('base','Resource',Resource);
 
 TX(1).Delay = computeTXDelays(TX(1));
+%Specify Transmit waveform structure for stimulation
+TPC(1).hv = V_amplitude;
+TPC(1).highVoltageLimit = 25;
+TPC(2).hv = V_amplitude;
+
+if ~isempty(Resource.parameters.TW)
+    delays = compute_linear_array_delays(Trans.ElementPos, Resource.parameters.target_position);
+    TW(2).type = Resource.parameters.TW(1).type;
+    TW(2).envNumCycles = Resource.parameters.TW(1).envNumCycles;
+    TW(2).envFrequency = Resource.parameters.TW(1).envFrequency;
+    TW(2).envPulseWidth = Resource.parameters.TW(1).envPulseWidth;
+    
+    TX(2).waveform = 2;
+    TX(2).Apod = ones([1,transmit_channels]);
+    TX(2).Delay = delays;
+% for i = 1:length(Resource.parameters.TW)
+%     TX(i+1).waveform = 2;
+%     TX(i+1).Apod = ones([1,transmit_channels]);
+%     TX(i+1).Delay = delays;
+% end
+end
 
 % Specify TGC Waveform structure.
 TGC(1).CntrlPts = [300,450,575,675,750,800,850,900];
@@ -160,13 +186,33 @@ Process(2).Parameters = {'srcbuffer','receive',... % name of buffer to process.
 'dstbuffer','none'};
 % Specify sequence events.
 SeqControl(1).command = 'timeToNextAcq';
-SeqControl(1).argument = 10000;
-SeqControl(2).command = 'jump';
-SeqControl(2).argument = 1;
+SeqControl(1).argument = imaging_prf;
 SeqControl(3).command = 'timeToNextAcq'; % time between syn. aper. acquisitions
-SeqControl(3).argument = 500;
-nsc = 4; % start index for new SeqControl
+SeqControl(3).argument = 20;
+
 n = 1; % start index for Events
+if ~isempty(Resource.parameters.TW)
+    for j = 1:length(Resource.parameters.TW)
+        Event(n).info = 'Acquire RF Data.';
+        Event(n).tx = 2; % use 1st TX structure.
+        Event(n).rcv = 0; % use 1st Rcv structure for frame.
+        Event(n).recon = 0; % no reconstruction.
+        Event(n).process = 0; % no processing
+        %Event(n).seqControl = [3]; % time between frames and transfer
+        %could create a 'timeToNextAcq' with argument 10 microseconds
+        n = n+1;
+    end
+end
+
+SeqControl(2).command = 'jump';
+SeqControl(2).condition = 'exitAfterJump';
+SeqControl(2).argument = n;
+
+nsc = 4; % start index for new SeqControl
+
+
+
+
 for i = 1:Resource.RcvBuffer(1).numFrames
     Event(n).info = 'Acquire RF Data.';
     Event(n).tx = 1; % use 1st TX structure.
