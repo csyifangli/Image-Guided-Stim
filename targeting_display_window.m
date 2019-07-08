@@ -26,12 +26,16 @@ function targeting_display_window()
     [x,y,I] = getimage(Resource.DisplayWindow.figureHandle);
     imagesc(targeting_window, x,y,I); hold on;
     target_pos = Resource.parameters.target_position;
+    
     Resource.parameters.target_point=impoint(targeting_window, target_pos(1), target_pos(2)); hold on;
 %     bringToFront(point)
+    title(targeting_window, ['Target Position ','(',mat2str(round(target_pos(1),3)),',',mat2str(round(target_pos(2),3)),')']);
     
     api = iptgetapi(Resource.parameters.target_point); 
     api.addNewPositionCallback(@(pos)... 
-    title(targeting_window, ['(',mat2str(pos(1)),',',mat2str(pos(2)),')']));
+    title(targeting_window, ['Target Position ','(',mat2str(round(pos(1),3)),',',mat2str(round(pos(2),3)),')']));
+    xlabel(targeting_window, 'mm');
+    ylabel(targeting_window, 'mm');
     drawnow
     catch e
         disp(e.message);
