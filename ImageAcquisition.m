@@ -34,12 +34,13 @@ Resource.Parameters.numRcvChannels = receive_channels; % no. of receive channels
 Resource.Parameters.connector = 0;
 Resource.Parameters.speedOfSound = 1540; % speed of sound in m/sec
 Resource.Parameters.fakeScanhead = 1; % optional (if no L11-4v)
-Resource.Parameters.simulateMode = 1; % runs script with hardware
+Resource.Parameters.simulateMode = 0; % runs script with hardware
 startDepth = 5;
 endDepth = 200;
 
-
-Trans.name = 'L11-4v';%'L12-5 38mm'; % 'L12-5 50mm';
+HVmux_script = 1;
+aperture_num = 64
+Trans.name = 'L12-5 50mm';%'L12-5 38mm'; % 'L11-4v';
 Trans.units = 'mm';
 Trans.frequency = Resource.parameters.imaging_freq; % not needed if using default center frequency
 Trans = computeTrans(Trans);
@@ -92,14 +93,16 @@ TW(1).Parameters = [Resource.parameters.imaging_freq,0.67,2,1]; % A, B, C, D
 TX(1).waveform = 1; % use 1st TW structure.
 TX(1).focus = 0;
 TX(1).Apod = ones(1,transmit_channels);
-%TX(1).aperture = 1;
+if HVmux_script
+    TX(1).aperture = aperture_num;
+end
 assignin('base','Trans',Trans);
 assignin('base','Resource',Resource);
 
 TX(1).Delay = computeTXDelays(TX(1));
 %Specify Transmit waveform structure for stimulation
 TPC(1).hv = V_amplitude;
-TPC(1).highVoltageLimit = 25;
+TPC(1).highVoltageLimit = 15;
 TPC(2).hv = V_amplitude;
 
 if ~isempty(Resource.parameters.TW)
@@ -142,7 +145,9 @@ Receive = repmat(struct(...
 for i = 1:Resource.RcvBuffer(1).numFrames
     Receive(i).Apod = ones(1, receive_channels);
     Receive(i).framenum = i;
-    %Receive(i).aperture = 1;
+    if HVmux_script
+        Receive(i).aperture = aperture_num;
+    end
 end
 
 % Specify Recon structure array for 2 board system.
