@@ -18,7 +18,7 @@ parse(p, varargin{:})
 transmit_channels = 128;% Trans.numelements;
 receive_channels = 128;%Trans.numelements;
 imaging_prf = 10000; % 'timeToNextAcq' argument [microseconds] 
-V_amplitude = 7;
+V_amplitude = 3;
 
 % Specify system parameters
 Resource.parameters.target_position = p.Results.target_position;
@@ -29,8 +29,8 @@ Resource.parameters.duration = p.Results.duration;
 Resource.parameters.prf = p.Results.prf;
 Resource.parameters.TW = p.Results.TW;
 Resource.parameters.GUI_handle = p.Results.GUI_handle;
-Resource.Parameters.numTransmit = transmit_channels; % no. of transmit channels.
-Resource.Parameters.numRcvChannels = receive_channels; % no. of receive channels.
+Resource.Parameters.numTransmit = transmit_channels; 
+Resource.Parameters.numRcvChannels = receive_channels;
 Resource.Parameters.connector = 0;
 Resource.Parameters.speedOfSound = 1540; % speed of sound in m/sec
 Resource.Parameters.fakeScanhead = 1; % optional (if no L11-4v)
@@ -39,7 +39,7 @@ startDepth = 5;
 endDepth = 200;
 
 HVmux_script = 1;
-aperture_num = 64
+aperture_num = 64;
 Trans.name = 'L12-5 50mm';%'L12-5 38mm'; % 'L11-4v';
 Trans.units = 'mm';
 Trans.frequency = Resource.parameters.imaging_freq; % not needed if using default center frequency
@@ -114,7 +114,9 @@ if ~isempty(Resource.parameters.TW)
     
     TX(2).waveform = 2;
     TX(2).Apod = ones([1,transmit_channels]);
-    TX(2).Delay = delays;
+    TX(2).Delay = delays(Trans.HVMux.ApertureES(:,aperture_num)~=0);
+    TX(2).aperture = aperture_num;
+    TW(2).sysExtendBL = 1;
 % for i = 1:length(Resource.parameters.TW)
 %     TX(i+1).waveform = 2;
 %     TX(i+1).Apod = ones([1,transmit_channels]);
@@ -199,7 +201,7 @@ n = 1; % start index for Events
 if ~isempty(Resource.parameters.TW)
     for j = 1:length(Resource.parameters.TW)
         Event(n).info = 'Acquire RF Data.';
-        Event(n).tx = 2; % use 1st TX structure.
+        Event(n).tx = 1; % use 1st TX structure.
         Event(n).rcv = 0; % use 1st Rcv structure for frame.
         Event(n).recon = 0; % no reconstruction.
         Event(n).process = 0; % no processing
