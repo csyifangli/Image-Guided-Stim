@@ -106,7 +106,9 @@ TPC(1).highVoltageLimit = 15;
 TPC(2).hv = V_amplitude;
 
 if ~isempty(Resource.parameters.TW)
-    delays = compute_linear_array_delays(Trans.ElementPos, Resource.parameters.target_position);
+    delays = compute_linear_array_delays(Trans.ElementPos,...,
+        Resource.parameters.target_position,...,
+        Resource.Parameters.speedOfSound*1000);
     TW(2).type = Resource.parameters.TW(1).type;
     TW(2).envNumCycles = Resource.parameters.TW(1).envNumCycles;
     TW(2).envFrequency = Resource.parameters.TW(1).envFrequency;
